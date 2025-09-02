@@ -43,7 +43,7 @@ data M (n : ℕ)
          M m (φ′ ∷ L.map (λ x → inject≤ x (n≤1+n _)) Open) (λ _ → ⊤)
        → (∀ {m} (r : n N.≤ m) → M m (L.map (λ x → inject≤ x r) Open) P)
        → M n Open P
-  res  : Exp
+  res  : Exp → Name → (φ : Fin n)
        → (Ty → M n Open P) → M n Open P
 
 postulate renameM : ∀ {n Open P} (f : Fin n → Fin (suc n)) → M n Open P → M (suc n) (L.map f Open) (P ∘ suc)
@@ -65,6 +65,6 @@ _⊢_𝓑_ {Open = Open} w (new φ m m₁) k = new φ m λ x → w ⊢ m₁ x �
   subst (λ Open → M _ Open _)
         (trans (sym (map-cong-local (A.tabulate (λ _ → inject≤-trans _ x r)))) (map-∘ Open))
         (k m₂ (NP.≤-trans x r) x₁)
-w ⊢ res r m 𝓑 k = res r (λ x → w ⊢ m x 𝓑 k)
+w ⊢ res r x φ m 𝓑 k = res r x φ (λ t → w ⊢ m t 𝓑 k)
 
 

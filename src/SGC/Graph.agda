@@ -32,11 +32,17 @@ module SGC.Graph
     (LDP : DecPoset ℓ0 ℓ0 ℓ0)
     (let Lbl = DecPoset.Carrier LDP)
     (_∶_ : Name → Ty → Lbl)
+    (tl tu : Ty)
+    (∶≤ : ∀ {l x} → DecPoset._≤_ LDP (x ∶ tl) l → DecPoset._≤_ LDP l (x ∶ tu) → ∃ λ t → l ≡ x ∶ t)
     (lex : Lbl)
   where
 
-open DecPoset LDP renaming (_≤?_ to _L≤?_)
-open import Text.Regex LDP as R
+open DecPoset LDP renaming (_≤?_ to _L≤?_; _≈_ to _L≈_)
+
+private
+  po = DecPoset.preorder LDP
+
+open import Text.Regex.Base po as R
 open import Text.Regex.Derivative.Brzozowski LDP as RB
 open import Text.Regex.Properties LDP as RP
 open import SGC.Core Name Ty LDP
@@ -45,6 +51,9 @@ open import SGC.Core Name Ty LDP
 
 suffix-refl : {A : Set} {xs : List A} → Suffix _≡_ xs xs
 suffix-refl = here (PP.refl E.refl)
+
+suffix-trans : {A : Set} {xs ys zs : List A} → Suffix _≡_ xs ys → Suffix _≡_ ys zs → Suffix _≡_ xs zs
+suffix-trans = {!!}
 
 -- Edges
 ------------------------------------------------------------------------
@@ -154,29 +163,29 @@ _ 𝓣 m = m
 {-# TERMINATING #-}
 resolve : (g : Graph)           -- cur graph
         → List (Fin (sc# g))    -- seens (cycle detection)
-        → Exp                   -- regex
+        → (re : Exp)            -- regex
         → (φ : Fin (sc# g))     -- cur scope
-        → Err ⊎ (∃ (Path g φ))  -- res
+        → Err ⊎ (∃ λ w → Path g φ w × w R.∈ re)  -- res
 
 res1 : (g : Graph)
      → List (Fin (sc# g))    -- seens
-     → Exp                   -- regex
+     → (re : Exp)            -- regex
      → (φ : Fin (sc# g))
      → List (∃ λ (e : Edge (sc# g)) → srcₑ e ≡ φ × e LM.∈ edges g)   -- edges to try
-     → Err ⊎ (∃ (Path g φ))  -- 
+     → Err ⊎ (∃ λ w → Path g φ w × w R.∈ re)
 
 res2 : (g : Graph)
      → List (Fin (sc# g))    -- seens
-     → Exp                   -- regex
+     → (re : Exp)            -- regex
      → (φ : Fin (sc# g))
      → List (∃ λ (e : Edge (sc# g)) → srcₑ e ≡ φ × e LM.∈ edges g) -- edges to try
-     → Err ⊎ (∃ (Path g φ))  -- 
+     → Err ⊎ (∃ λ w → Path g φ w × w R.∈ re)
 
 res1 g φs r φ = foldr
   (λ (e , eq , lw) m →
     ( (λ e → e 𝓣 m)
-    ∇ (λ (w , p) →
-         ( (λ _ → inj₂ (lblₑ e ∷ w , step e eq lw p E.refl))
+    ∇ (λ (w , p , q) →
+         ( (λ _ → inj₂ (lblₑ e ∷ w , step e eq lw p E.refl , eat-sound (lblₑ e) r q))
          ∇ λ _ → inj₁ ambiguity-error )
          m) )
     (resolve g (φ ∷ φs) (eat (lblₑ e) r) (tgtₑ e)))
@@ -190,33 +199,69 @@ res2 g φs r φ es@(_ ∷ _) = let
      (res1 g φs r φ least)
 
 
+-- Fixme: missing check for when r is empty.
 resolve g φs r φ with A?.any? (φ FP.≟_) φs
 ... | yes _ = inj₁ resolution-error -- cycle detected
 ... | no  _ = let
     es = outgoing φ r (edges g)
   in res2 g φs r φ es
 
-runM : ∀ (g₁ : Graph) {P} → M (sc# g₁) (opn g₁) P → ∃ λ g₂ → g₁ ⊑ g₂ × P (sc# g₂)
-runM g (pure x) = g , ⊑-refl , x
+runM : ∀ (g₁ : Graph) {P} → M (sc# g₁) (opn g₁) P → Err ⊎ (∃ λ g₂ → g₁ ⊑ g₂ × P (sc# g₂))
+runM g (pure x) = inj₂ (g , ⊑-refl , x)
 runM g (imp φ φ′ l x₁ x₂ m) = let
     g′ = G⟨ (sc# g) ∙ ((φ -[ l ]-> φ′) ∷ edges g) ∙ opn g ⟩
-    (g″ , ext , p)  = runM g′ m
-  in g″
-   , ⊑-trans
-       ⊑⟨ NP.≤-refl ∙ (there (subst (λ X → Suffix _≡_ X _) (sym wk-edges-refl) suffix-refl)) ⟩
-       ext
-   , p
+    r = runM g′ m
+  in ( inj₁
+     ∇ λ (g″ , ext , p) → inj₂
+              ( g″
+              , ⊑-trans
+                  ⊑⟨ NP.≤-refl ∙ (there (subst (λ X → Suffix _≡_ X _) (sym wk-edges-refl) suffix-refl)) ⟩
+                  ext
+              , p ) )
+     r
 runM g (new φ m k) = let
     g′ = G⟨ N.suc (sc# g)
           ∙ L.map (wk-edge (n≤1+n _)) (edges g)
           ∙ fromℕ (sc# g) ∷ L.map (λ x → inject≤ x (n≤1+n _)) (opn g) ⟩
-    (g″ , ext , _) = runM g′ m
-    g₁ = G⟨ N.suc (sc# g)
-          ∙ ((fromℕ (sc# g)) -[ lex ]-> inject≤ φ (n≤1+n _)) ∷ L.map (wk-edge (n≤1+n _)) (edges g)
-          ∙ L.map (λ x → inject≤ x (n≤1+n _)) (opn g) ⟩
-    (g₂ , ext′ , p) = runM g₁ (k (n≤1+n _))
-  in g₂ , (⊑-trans ⊑⟨ (n≤1+n _)
-                    ∙ there (here (PP.refl E.refl)) ⟩
-                   ext′) , p
-runM g (res re m) = {!!}
+    r₁ = runM g′ m
+  in ( inj₁
+     ∇ λ (g″ , ext , _) → let
+         g₁ = G⟨ sc# g″
+               ∙ (inject≤ (fromℕ (sc# g)) (sc#⊑ ext)
+                   -[ lex ]->
+                     inject≤ φ (NP.≤-trans (n≤1+n _) (sc#⊑ ext)))
+                 ∷ edges g″
+               ∙ L.map (λ x → inject≤ x (NP.≤-trans (n≤1+n _) (sc#⊑ ext))) (opn g) ⟩
+         r₂ = runM g₁ (k (NP.≤-trans (n≤1+n _) (sc#⊑ ext)))
+       in ( inj₁
+          ∇ λ (g₂ , ext′ , p) →
+            inj₂ ( g₂
+                 , ⊑-trans ⊑⟨ NP.≤-trans (n≤1+n _) (sc#⊑ ext)
+                              ∙ there (suffix-trans
+                                         (subst (Suffix _≡_ (L.map
+                                                               (wk-edge
+                                                                (NP.≤-trans (n≤1+n (sc# g))
+                                                                 (sc#⊑ ext)))
+                                                               (edges g)))
+                                                (E.trans
+                                                  (sym
+                                                    (map-cong
+                                                      (wk-edge-trans≡ (n≤1+n _) (sc#⊑ ext))
+                                                      (edges g)))
+                                                  (map-∘ _))
+                                                suffix-refl)
+                                         (edges⊑ ext)) ⟩ ext′
+                 , p ) )
+          r₂ )
+     r₁
+runM g (res re x φ m) = let r = resolve g [] (re R.∙ R.[ (x ∶ tl) R.─ (x ∶ tu) ∷ [] ]) φ
+  in ( inj₁
+     ∇ λ (w , _ , q) → runM g (m (extr re x q)) )
+     r
+  where
+    extr : ∀ {w : List Lbl} (re : Exp) (x : Name)
+         → w R.∈ (re R.∙ (R.[ (x ∶ tl) R.─ (x ∶ tu) ∷ [] ]))
+         → Ty
+    extr re x (prod eq r₁ [ here (x₁ R.─ x₂) ]) = let (t , _) = ∶≤ x₁ x₂ in t
+
 
