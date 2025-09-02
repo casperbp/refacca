@@ -1,20 +1,31 @@
-module SGC.Core (Name Lbl Ty RE : Set) where
-
 open import Function
+
+open import Level renaming (suc to ℓsuc; zero to ℓ0)
 
 open import Data.Empty
 open import Data.Unit
+
 open import Data.Nat as N
+open import Data.Nat.Properties as NP
+
 open import Data.Fin
 open import Data.Fin.Properties
-open import Data.Nat.Properties as NP
+
 open import Data.List as L
 open import Data.List.Properties
-open import Data.List.Membership.Propositional
+open import Data.List.Membership.Propositional as LM
 open import Data.List.Relation.Unary.All as A
 
-open import Relation.Nullary
+open import Relation.Binary.Bundles using (DecPoset)
 open import Relation.Binary.PropositionalEquality
+
+module SGC.Core
+    (Name Ty : Set)
+    (LDP : DecPoset ℓ0 ℓ0 ℓ0)
+    (let Lbl = DecPoset.Carrier LDP)
+  where
+
+open import Text.Regex LDP as R
 
 data M (n : ℕ)
        (Open : List (Fin n))
@@ -22,8 +33,8 @@ data M (n : ℕ)
   pure : P n → M n Open P
   imp  : (φ φ′ : Fin n)
        → Lbl
-       → φ ∈ Open
-       → φ′ ∉ Open
+       → φ LM.∈ Open
+       → φ′ LM.∉ Open
        → M n Open P
        → M n Open P
   new  : (φ : Fin n)
@@ -32,9 +43,7 @@ data M (n : ℕ)
          M m (φ′ ∷ L.map (λ x → inject≤ x (n≤1+n _)) Open) (λ _ → ⊤)
        → (∀ {m} (r : n N.≤ m) → M m (L.map (λ x → inject≤ x r) Open) P)
        → M n Open P
-  res  : RE
-       → (_≤L_ : (l₁ l₂ : Lbl) → Set)
-       → (dec : (l₁ l₂ : Lbl) → Dec (l₁ ≤L l₂))
+  res  : Exp
        → (Ty → M n Open P) → M n Open P
 
 postulate renameM : ∀ {n Open P} (f : Fin n → Fin (suc n)) → M n Open P → M (suc n) (L.map f Open) (P ∘ suc)
@@ -56,6 +65,6 @@ _⊢_𝓑_ {Open = Open} w (new φ m m₁) k = new φ m λ x → w ⊢ m₁ x �
   subst (λ Open → M _ Open _)
         (trans (sym (map-cong-local (A.tabulate (λ _ → inject≤-trans _ x r)))) (map-∘ Open))
         (k m₂ (NP.≤-trans x r) x₁)
-w ⊢ res o d r m 𝓑 k = res o d r (λ x → w ⊢ m x 𝓑 k)
+w ⊢ res r m 𝓑 k = res r (λ x → w ⊢ m x 𝓑 k)
 
 
