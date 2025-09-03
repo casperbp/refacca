@@ -52,8 +52,10 @@ open import SGC.Core Name Ty LDP
 suffix-refl : {A : Set} {xs : List A} → Suffix _≡_ xs xs
 suffix-refl = here (PP.refl E.refl)
 
-suffix-trans : {A : Set} {xs ys zs : List A} → Suffix _≡_ xs ys → Suffix _≡_ ys zs → Suffix _≡_ xs zs
-suffix-trans = {!!}
+pw-refl : {A : Set} {xs ys : List A} → Pointwise _≡_ xs ys → xs ≡ ys
+pw-refl [] = E.refl
+pw-refl (x∼y ∷ x) = cong₂ _∷_ x∼y (pw-refl x)
+
 
 -- Edges
 ------------------------------------------------------------------------
@@ -77,12 +79,14 @@ wk-edges-refl = map-id-local (A.tabulate λ where
 
 wk-edge-trans≡ : {n₁ n₂ n₃ : ℕ} (r₁ : n₁ N.≤ n₂) (r₂ : n₂ N.≤ n₃) (e : Edge n₁)
                → wk-edge r₂ (wk-edge r₁ e) ≡ wk-edge (NP.≤-trans r₁ r₂) e
-wk-edge-trans≡ = {!!}
+wk-edge-trans≡ r₁ r₂ e = cong₂ _-[ _ ]->_ (inject≤-trans _ r₁ r₂) (inject≤-trans _ r₁ r₂)
 
 suffix-wk : ∀ {n m : ℕ} (es₁ es₂ : List (Edge n)) (r : n N.≤ m)
           → Suffix _≡_ es₁ es₂
           → Suffix _≡_ (L.map (wk-edge r) es₁) (L.map (wk-edge r) es₂)
-suffix-wk = {!!}
+suffix-wk es₁ es₂ r (here x) with pw-refl x
+... | E.refl = here (PP.refl E.refl)
+suffix-wk es₁ .(_ ∷ _) r (there x) = there (suffix-wk es₁ _ r x)
 
 record Graph : Set where
   constructor G⟨_∙_∙_⟩
@@ -237,7 +241,7 @@ runM g (new φ m k) = let
           ∇ λ (g₂ , ext′ , p) →
             inj₂ ( g₂
                  , ⊑-trans ⊑⟨ NP.≤-trans (n≤1+n _) (sc#⊑ ext)
-                              ∙ there (suffix-trans
+                              ∙ there (HP.trans E.trans
                                          (subst (Suffix _≡_ (L.map
                                                                (wk-edge
                                                                 (NP.≤-trans (n≤1+n (sc# g))
