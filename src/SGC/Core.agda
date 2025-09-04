@@ -56,15 +56,14 @@ inj-le : ∀ {n m} (r : n N.≤ m) (φ : Fin n) → suc (inject≤ φ r) ≡ inj
 inj-le (s≤s r) zero = refl
 inj-le r (suc φ) = refl
 
-_⊢_𝓑_ : ∀ {n Open P Q}
-      → (∀ n m → n N.≤ m → P n → P m)
+_𝓑_ : ∀ {n Open P Q}
       → M n Open P → (∀ m → (r : n N.≤ m) → P m → M m (L.map (λ x → inject≤ x r) Open) Q) → M n Open Q
-_ ⊢ pure x 𝓑 k = subst (λ Open → M _ Open _) (map-id-local (All-inject-refl≤ _)) (k _ (NP.≤-reflexive refl) x)
-w ⊢ imp n n′ l x₁ x₂ m 𝓑 k = imp n n′ l x₁ x₂ (w ⊢ m 𝓑 k)
-_⊢_𝓑_ {Open = Open} w (new φ m m₁) k = new φ m λ x → w ⊢ m₁ x 𝓑 λ m₂ r x₁ →
+pure x 𝓑 k = subst (λ Open → M _ Open _) (map-id-local (All-inject-refl≤ _)) (k _ (NP.≤-reflexive refl) x)
+imp n n′ l x₁ x₂ m 𝓑 k = imp n n′ l x₁ x₂ (m 𝓑 k)
+_𝓑_ {Open = Open} (new φ m m₁) k = new φ m λ x → m₁ x 𝓑 λ m₂ r x₁ →
   subst (λ Open → M _ Open _)
         (trans (sym (map-cong-local (A.tabulate (λ _ → inject≤-trans _ x r)))) (map-∘ Open))
         (k m₂ (NP.≤-trans x r) x₁)
-w ⊢ res r x φ m 𝓑 k = res r x φ (λ t → w ⊢ m t 𝓑 k)
+res r x φ m 𝓑 k = res r x φ (λ t → m t 𝓑 k)
 
 
