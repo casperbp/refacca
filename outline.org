@@ -1,0 +1,21 @@
+#+TITLE: A Type Discipline for Phased Graph Construction and Search
+
+Graphs are ubiquitous
+
+How to construct them?
+
+For name binding: in a phased manner.
+
+How do we ensure that graph queries remain stable as new facts are added?
+
+In this work, we propose a type discipline and monad that ensures this.
+
+To this end, we present both a Haskell framework that implements the approach, and an Agda formalization that motivates the soundness of the Haskell implementation.
+
+We demonstrate the utility of our approach in building type checkers for languages with phased name binding.  Concretely, a small module language.
+
+We also highlight the limitations of the approach for encoding certain kinds of graph search, which correspond to patterns of name binding and resolution found in some existing languages.
+
+
+
+
